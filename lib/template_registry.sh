@@ -10,6 +10,12 @@ forge::template_is_builtin() {
     [[ -d "$builtin_dir/$name" ]]
 }
 
+# forge::dir_has_symlinks DIR
+# 0 se houver qualquer symlink na árvore — templates com symlink são
+# recusados no add para não propagá-los a todo projeto gerado.
+forge::dir_has_symlinks() {
+    [[ -n "$(find "$1" -type l -print -quit)" ]]
+}
 # forge::cmd_template_add NAME SOURCE BUILTIN_DIR
 # SOURCE pode ser um diretório local ou uma URL git (https://, git@ ou *.git).
 forge::cmd_template_add() {
@@ -23,7 +29,7 @@ forge::cmd_template_add() {
         return 1
     fi
 
-    forge::validate_template_name "$name" || return 1
+    forge::validate_identifier "$name" "template name" || return 1
 
     if forge::template_is_builtin "$name" "$builtin_dir"; then
         forge::err "'$name' is a built-in template name and cannot be overridden."
@@ -53,10 +59,19 @@ forge::cmd_template_add() {
                 return 1
             fi
             rm -rf "$dest/.git"
+            if forge::dir_has_symlinks "$dest"; then
+                forge::err "template source contains symlinks — refusing to add."
+                rm -rf "$dest"
+                return 1
+            fi
             ;;
         *)
             if [[ ! -d "$source" ]]; then
                 forge::err "source directory not found: $source"
+                return 1
+            fi
+            if forge::dir_has_symlinks "$source"; then
+                forge::err "template source contains symlinks — refusing to add."
                 return 1
             fi
             cp -r "$source" "$dest"
@@ -68,31 +83,27 @@ forge::cmd_template_add() {
 
 # forge::cmd_template_list
 forge::cmd_template_list() {
-    local user_dir dir name has_any=false
+    local user_dir dir name found=false
 
     user_dir="$(forge::user_templates_dir)"
 
     if [[ -d "$user_dir" ]]; then
         for dir in "$user_dir"/*/; do
             [[ -d "$dir" ]] || continue
-            has_any=true
-            break
+            if [[ "$found" != "true" ]]; then
+                found=true
+                forge::title "Custom templates:"
+                printf '\n'
+            fi
+            name="$(basename "$dir")"
+            printf '  %-10s %s\n' "$name" "$dir"
         done
     fi
 
-    if [[ "$has_any" != "true" ]]; then
+    if [[ "$found" != "true" ]]; then
         forge::info "No custom templates installed."
         printf "Add one with: forge template add <name> <path-or-git-url>\n"
-        return 0
     fi
-
-    forge::title "Custom templates:"
-    printf '\n'
-    for dir in "$user_dir"/*/; do
-        [[ -d "$dir" ]] || continue
-        name="$(basename "$dir")"
-        printf '  %-10s %s\n' "$name" "$dir"
-    done
 }
 
 # forge::cmd_template_remove NAME BUILTIN_DIR FORCE

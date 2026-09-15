@@ -74,6 +74,7 @@ Regras:
 - Origem local (diretório) é copiada como está; origem git é clonada
   (`--depth 1`) e o `.git` resultante é removido — o template fica só com
   os arquivos.
+- Origem com symlink (local ou clonada) é recusada.
 - `forge list` mostra templates embutidos e customizados juntos, marcando
   os customizados com `(custom)`.
 

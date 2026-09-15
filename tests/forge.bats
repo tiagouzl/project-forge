@@ -22,6 +22,17 @@ teardown() {
     rm -rf "$FORGE_ROOT/templates/__test_spaces__"
 }
 
+# make_fakebin DIR TOOL... — links dos executáveis p/ simular PATH parcial.
+make_fakebin() {
+    local dest="$1"; shift
+    mkdir -p "$dest"
+    local tool path
+    for tool in "$@"; do
+        path="$(command -v "$tool")" || continue
+        ln -s "$path" "$dest/$tool"
+    done
+}
+
 @test "--version imprime a versão" {
     run "$FORGE" --version
     [ "$status" -eq 0 ]
@@ -200,6 +211,12 @@ teardown() {
     [ -d "custom-parent/demo" ]
 }
 
+@test "--path vazio é rejeitado" {
+    run "$FORGE" new python demo --path "" --no-git
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"non-empty"* ]]
+}
+
 @test "doctor reporta sucesso quando as dependências core estão presentes" {
     run "$FORGE" doctor
     [ "$status" -eq 0 ]
@@ -217,10 +234,7 @@ teardown() {
 
 @test "doctor detecta dependência core ausente (perl fora do PATH)" {
     fakebin="$(mktemp -d)"
-    for tool in bash git cp mkdir find sort grep head cat rm mv chmod mktemp readlink dirname basename; do
-        path="$(command -v "$tool")" || continue
-        ln -s "$path" "$fakebin/$tool"
-    done
+    make_fakebin "$fakebin" bash git cp mkdir find sort grep head cat rm mv chmod mktemp readlink dirname basename
 
     PATH="$fakebin" run "$FORGE" doctor
     [ "$status" -ne 0 ]
@@ -232,10 +246,7 @@ teardown() {
 
 @test "doctor reporta toolchains opcionais mesmo se ausentes, sem falhar por causa delas" {
     fakebin="$(mktemp -d)"
-    for tool in bash perl git cp mkdir find sort grep head cat rm mv chmod mktemp readlink dirname basename; do
-        path="$(command -v "$tool")" || continue
-        ln -s "$path" "$fakebin/$tool"
-    done
+    make_fakebin "$fakebin" bash perl git cp mkdir find sort grep head cat rm mv chmod mktemp readlink dirname basename
 
     PATH="$fakebin" run "$FORGE" doctor
     [ "$status" -eq 0 ]
@@ -303,6 +314,41 @@ teardown() {
     run "$FORGE" template add node "$PWD/nao-existe"
     [ "$status" -ne 0 ]
     [[ "$output" == *"source directory not found"* ]]
+}
+
+@test "template add recusa origem local com symlink" {
+    export HOME="$TEST_DIR/home"
+    mkdir -p "$HOME" src-template
+    echo "x" > src-template/file.txt
+    ln -s file.txt src-template/link
+
+    run "$FORGE" template add node "$PWD/src-template"
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"symlink"* ]]
+    [ ! -e "$HOME/.config/project-forge/templates/node" ]
+}
+
+@test "template add recusa clone git com symlink" {
+    export HOME="$TEST_DIR/home"
+    mkdir -p "$HOME"
+
+    fixture="$TEST_DIR/git-link-source"
+    mkdir -p "$fixture"
+    (
+        cd "$fixture" &&
+        git init --quiet &&
+        git config user.name "test" &&
+        git config user.email "test@example.com" &&
+        echo "x" > file.txt &&
+        ln -s file.txt link &&
+        git add -A &&
+        git commit --quiet -m "seed"
+    )
+
+    run "$FORGE" template add fromgit "file://$fixture"
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"symlink"* ]]
+    [ ! -e "$HOME/.config/project-forge/templates/fromgit" ]
 }
 
 @test "forge new usa um template customizado normalmente" {

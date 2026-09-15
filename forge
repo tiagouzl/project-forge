@@ -5,7 +5,7 @@
 #
 set -euo pipefail
 
-FORGE_VERSION="0.4.0"
+FORGE_VERSION="0.4.1"
 
 # Resolve o diretório real do script, mesmo se chamado via symlink.
 FORGE_ROOT="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
@@ -56,10 +56,6 @@ Examples:
 EOF
 }
 
-forge::cmd_list() {
-    forge::list_templates "$TEMPLATES_DIR"
-}
-
 forge::cmd_new() {
     local template="" name="" path="." no_git=false force=false dry_run=false
 
@@ -89,6 +85,10 @@ forge::cmd_new() {
                     return 1
                 fi
                 path="$2"
+                if [[ -z "$path" ]]; then
+                    forge::err "--path requires a non-empty value."
+                    return 1
+                fi
                 shift 2
                 ;;
             --no-git)
@@ -110,7 +110,7 @@ forge::cmd_new() {
         esac
     done
 
-    forge::validate_project_name "$name" || return 1
+    forge::validate_identifier "$name" "project name" || return 1
     forge::validate_template "$template" "$TEMPLATES_DIR" || return 1
 
     local dest
@@ -218,7 +218,7 @@ forge::main() {
                 forge::err "usage: forge list"
                 return 1
             fi
-            forge::cmd_list
+            forge::list_templates "$TEMPLATES_DIR"
             ;;
         doctor)
             if [[ $# -ne 1 ]]; then

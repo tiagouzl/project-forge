@@ -28,15 +28,8 @@ EOF
     return 0
 }
 
-# forge::validate_project_name NAME
-forge::validate_project_name() {
-    forge::validate_identifier "${1:-}" "project name"
-}
-
-# forge::validate_template_name NAME
-forge::validate_template_name() {
-    forge::validate_identifier "${1:-}" "template name"
-}
+# Nomes de projeto e template usam a mesma regra; chamar
+# forge::validate_identifier diretamente com o rótulo adequado.
 
 # forge::validate_template NAME BUILTIN_TEMPLATES_DIR
 # Aceita tanto templates embutidos (BUILTIN_TEMPLATES_DIR) quanto templates

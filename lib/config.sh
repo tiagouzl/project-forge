@@ -6,19 +6,13 @@
 #   no_git         — "true"/"false" (padrão: false)
 # Flags CLI sempre vencem o config; arquivo ausente = comportamento atual.
 
-# forge::config_file — ecoa o caminho do arquivo de config.
-forge::config_file() {
-    printf '%s' "${XDG_CONFIG_HOME:-$HOME/.config}/project-forge/config"
-}
-
 # forge::load_config — preenche FORGE_CFG_DEFAULT_PATH / FORGE_CFG_NO_GIT.
 # Vazio = não configurado. Nunca falha por arquivo ausente ou malformado.
 forge::load_config() {
     FORGE_CFG_DEFAULT_PATH=""
     FORGE_CFG_NO_GIT=""
 
-    local cfg
-    cfg="$(forge::config_file)"
+    local cfg="${XDG_CONFIG_HOME:-$HOME/.config}/project-forge/config"
     [[ -f "$cfg" ]] || return 0
 
     local line key value
