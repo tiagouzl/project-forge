@@ -2,12 +2,20 @@
 
 A lightweight project scaffolding CLI built entirely with Bash.
 
-`forge` cria projetos a partir de templates, aplica substituição de
-variáveis, valida nome/destino, e opcionalmente inicializa um repositório
-Git — sem depender de Python, Node ou qualquer runtime além de utilitários
-POSIX básicos (`bash`, `cp`, `mkdir`, `find`, `perl`, `git`).
+`forge` creates projects from templates, substitutes variables, validates
+names/destinations, and optionally initializes a Git repository — with no
+dependency on Python, Node, or any runtime beyond basic utilities
+(`bash`, `cp`, `mkdir`, `find`, `sort`, `perl`, `git`).
 
-## Uso
+## Install
+
+```bash
+git clone https://github.com/tiagouzl/project-forge.git
+cd project-forge
+./forge list
+```
+
+## Usage
 
 ```bash
 ./forge list
@@ -17,88 +25,95 @@ POSIX básicos (`bash`, `cp`, `mkdir`, `find`, `perl`, `git`).
 ./forge new bash backup-tool --path ~/Projects --no-git
 ```
 
-## Opções
+## Options
 
-| Flag            | Efeito                                             |
-|-----------------|-----------------------------------------------------|
-| `--path <dir>`  | Diretório pai do novo projeto (padrão: `.`)         |
-| `--no-git`      | Não inicializa repositório Git                      |
-| `--force`       | Sobrescreve o destino se já existir                 |
-| `--dry-run`     | Mostra o que seria criado, sem tocar em disco       |
+| Flag            | Effect                                                              |
+|-----------------|---------------------------------------------------------------------|
+| `--path <dir>`  | Parent directory for the new project (default: `.`, or `default_path` from config) |
+| `--no-git`      | Skip Git repository initialization                                  |
+| `--force`       | Overwrite the destination if it already exists                      |
+| `--dry-run`     | Show what would be created, without touching disk                   |
 
-## Ambiente
+## Environment
 
 ```bash
 ./forge doctor
 ```
 
-Verifica as dependências **core** do próprio forge (`bash`, `perl`, `git` —
-sem elas o forge não funciona) e as **toolchains opcionais** usadas pelos
-projetos gerados (`python3`, `gcc`, `g++` — o forge cria os arquivos de
-qualquer forma; compilar/rodar depois é responsabilidade de cada toolchain).
+Checks the forge's **core** dependencies (`bash`, `perl`, `git` —
+without them forge doesn't work) and the **optional toolchains** used by
+generated projects (`python3`, `gcc`, `g++` — forge creates the files
+anyway; building/running afterwards is each toolchain's job).
 
-## Configuração
+## Configuration
 
-Opcional, em `${XDG_CONFIG_HOME:-~/.config}/project-forge/config`
-(formato `KEY=VALUE`, uma por linha; `#` inicia comentário):
+Optional, at `${XDG_CONFIG_HOME:-~/.config}/project-forge/config`
+(`KEY=VALUE` format, one per line; `#` starts a comment):
 
 ```bash
 default_path=~/Projects
 no_git=false
 ```
 
-- `default_path` — diretório pai padrão do `forge new` (padrão: `.`).
-- `no_git` — `true`/`false` (padrão: `false`). Com `true`, `new` pula o
-  `git init` — e não há flag para reabilitar no comando; remova do config.
-- Chaves desconhecidas são ignoradas; `no_git` inválido é ignorado com aviso.
-- Flags CLI vencem o config (`--path` sobrescreve `default_path`,
-  `--no-git` força sem git). Arquivo ausente = comportamento atual.
+- `default_path` — default parent directory for `forge new` (default: `.`).
+- `no_git` — `true`/`false` (default: `false`). With `true`, `new` skips
+  `git init` — and there is no flag to re-enable it per command; remove it
+  from the config.
+- Unknown keys are ignored; invalid `no_git` is ignored with a warning.
+- CLI flags win over config (`--path` overrides `default_path`,
+  `--no-git` forces no git). Missing file = current behavior.
 
-## Templates customizados
+## Custom templates
 
-Além dos três templates embutidos, é possível adicionar os seus, guardados
-em `${XDG_CONFIG_HOME:-~/.config}/project-forge/templates/` (fora do
-repositório do forge):
+Beyond the three built-in templates, you can add your own, stored in
+`${XDG_CONFIG_HOME:-~/.config}/project-forge/templates/` (outside the
+forge repository):
 
 ```bash
-forge template add node ./meu-template-local
-forge template add node https://github.com/usuario/meu-template.git
+./forge template add node ./my-local-template
+./forge template add node https://github.com/user/my-template.git
 
-forge template list
-forge template remove node
-forge template remove node --force   # sem confirmação interativa
+./forge template list
+./forge template remove node
+./forge template remove node --force   # no interactive confirmation
 ```
 
-Regras:
-- Um nome de template **built-in nunca pode ser sobrescrito** (`python`, `cpp`, `bash`).
-- Origem local (diretório) é copiada como está; origem git é clonada
-  (`--depth 1`) e o `.git` resultante é removido — o template fica só com
-  os arquivos.
-- Origem com symlink (local ou clonada) é recusada.
-- `forge list` mostra templates embutidos e customizados juntos, marcando
-  os customizados com `(custom)`.
+Rules:
+- A **built-in template name can never be overridden** (`python`, `cpp`, `bash`).
+- Local directory sources are copied as-is; git sources are cloned
+  (`--depth 1`) and the resulting `.git` is removed — the template keeps
+  only the files.
+- Sources containing symlinks (local or cloned) are refused.
+- `./forge list` shows built-in and custom templates together, marking
+  custom ones with `(custom)`.
 
 ## Templates
 
-| Nome     | Conteúdo                                                        |
-|----------|------------------------------------------------------------------|
-| `python` | pacote em `src/<slug>/`, testes, `.gitignore`, `run.sh`          |
-| `cpp`    | `src/main.cpp`, `include/`, `tests/`                             |
-| `bash`   | script executável em `src/`, teste básico                        |
+| Name     | Contents                                                |
+|----------|---------------------------------------------------------|
+| `python` | package in `src/<slug>/`, tests, `.gitignore`, `run.sh` |
+| `cpp`    | `src/main.cpp`, `include/`, `tests/`                    |
+| `bash`   | executable script in `src/`, basic test                 |
 
-Templates usam dois placeholders:
-- `{{PROJECT_NAME}}` / `{{PROJECT_SLUG}}` — substituídos no *conteúdo* dos arquivos.
-- `__PROJECT_SLUG__` — substituído em *nomes* de arquivo/diretório.
+Templates use two placeholders:
+- `{{PROJECT_NAME}}` / `{{PROJECT_SLUG}}` — substituted in file *contents*.
+- `__PROJECT_SLUG__` — substituted in file/directory *names*.
 
-## Testes
+## Tests
 
 ```bash
 bats tests/forge.bats
 ```
 
+Requires [bats-core](https://github.com/bats-core/bats-core) (`npx bats` also works).
+
 ## Roadmap
 
-- **v0.1**: `new`, `list`, templates Python/C++/Bash, validação, `--dry-run`, Git.
-- **v0.2**: `forge doctor` (detecção de ambiente: bash, perl, git, python, gcc).
-- **v0.3**: templates externos (`forge template add/list/remove`).
-- **v0.4** (atual): configuração de usuário em `~/.config/project-forge/config` (`default_path`, `no_git`).
+- **v0.1**: `new`, `list`, Python/C++/Bash templates, validation, `--dry-run`, Git.
+- **v0.2**: `forge doctor` (environment detection: bash, perl, git, python, gcc).
+- **v0.3**: external templates (`forge template add/list/remove`).
+- **v0.4** (current): user configuration in `~/.config/project-forge/config` (`default_path`, `no_git`).
+
+## License
+
+MIT — see [LICENSE](LICENSE).
