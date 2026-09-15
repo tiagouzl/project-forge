@@ -1,0 +1,246 @@
+#!/usr/bin/env bash
+#
+# forge — CLI para gerar projetos a partir de templates, inicializar Git
+# e configurar automaticamente o ambiente básico.
+#
+set -euo pipefail
+
+FORGE_VERSION="0.4.0"
+
+# Resolve o diretório real do script, mesmo se chamado via symlink.
+FORGE_ROOT="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
+LIB_DIR="$FORGE_ROOT/lib"
+TEMPLATES_DIR="$FORGE_ROOT/templates"
+
+# shellcheck source=lib/colors.sh
+source "$LIB_DIR/colors.sh"
+# shellcheck source=lib/validation.sh
+source "$LIB_DIR/validation.sh"
+# shellcheck source=lib/git.sh
+source "$LIB_DIR/git.sh"
+# shellcheck source=lib/templates.sh
+source "$LIB_DIR/templates.sh"
+# shellcheck source=lib/doctor.sh
+source "$LIB_DIR/doctor.sh"
+# shellcheck source=lib/template_registry.sh
+source "$LIB_DIR/template_registry.sh"
+# shellcheck source=lib/config.sh
+source "$LIB_DIR/config.sh"
+
+forge::usage() {
+    cat <<'EOF'
+Project Forge — scaffold projects from templates.
+
+Usage:
+  forge new <template> <name> [options]
+  forge list
+  forge doctor
+  forge template add <name> <path-or-git-url>
+  forge template list
+  forge template remove <name> [--force]
+  forge --help
+  forge --version
+
+Options:
+  --path <dir>   Parent directory for the new project (default: .)
+  --no-git       Skip git init
+  --force        Overwrite destination if it already exists
+  --dry-run      Show what would be created without touching disk
+  -h, --help     Show this help
+  -v, --version  Show version
+
+Examples:
+  forge new python little-tool
+  forge new cpp sensor --dry-run
+  forge new bash backup-tool --path ~/Projects --no-git
+EOF
+}
+
+forge::cmd_list() {
+    forge::list_templates "$TEMPLATES_DIR"
+}
+
+forge::cmd_new() {
+    local template="" name="" path="." no_git=false force=false dry_run=false
+
+    forge::load_config
+    [[ -n "${FORGE_CFG_DEFAULT_PATH:-}" ]] && path="$FORGE_CFG_DEFAULT_PATH"
+    [[ "${FORGE_CFG_NO_GIT:-}" == "true" ]] && no_git=true
+
+    if [[ $# -lt 1 ]]; then
+        forge::err "missing template name."
+        forge::usage
+        return 1
+    fi
+    template="$1"; shift
+
+    if [[ $# -lt 1 ]]; then
+        forge::err "missing project name."
+        forge::usage
+        return 1
+    fi
+    name="$1"; shift
+
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --path)
+                if [[ $# -lt 2 ]]; then
+                    forge::err "--path requires a value."
+                    return 1
+                fi
+                path="$2"
+                shift 2
+                ;;
+            --no-git)
+                no_git=true
+                shift
+                ;;
+            --force)
+                force=true
+                shift
+                ;;
+            --dry-run)
+                dry_run=true
+                shift
+                ;;
+            *)
+                forge::err "unknown option: $1"
+                return 1
+                ;;
+        esac
+    done
+
+    forge::validate_project_name "$name" || return 1
+    forge::validate_template "$template" "$TEMPLATES_DIR" || return 1
+
+    local dest
+    if [[ "$path" == "." ]]; then
+        dest="$name"
+    else
+        dest="${path%/}/$name"
+    fi
+    forge::check_destination "$dest" "$force" || return 1
+
+    if [[ "$force" == "true" ]] && [[ -e "$dest" ]] && [[ "$dry_run" != "true" ]]; then
+        rm -rf "$dest"
+    fi
+
+    forge::title "Project Forge"
+    printf '\n'
+    printf 'Template: %s\n' "$template"
+    printf 'Project:  %s\n' "$name"
+    printf 'Path:     %s\n\n' "$dest"
+
+    if [[ "$dry_run" == "true" ]]; then
+        forge::title "DRY RUN"
+        printf '\n'
+    else
+        forge::info "Creating project..."
+    fi
+
+    forge::instantiate "$(forge::resolve_template_dir "$template" "$TEMPLATES_DIR")" "$dest" "$name" "$dry_run"
+
+    if [[ "$no_git" == "true" ]]; then
+        [[ "$dry_run" == "true" ]] && forge::info "Would skip Git initialization (--no-git)."
+    else
+        forge::git_init "$dest" "$dry_run"
+    fi
+
+    printf '\n'
+    if [[ "$dry_run" == "true" ]]; then
+        forge::info "No changes were made."
+    else
+        forge::title "Project created successfully."
+        cat <<EOF
+
+Next steps:
+
+  cd $dest
+EOF
+    fi
+}
+
+forge::cmd_template() {
+    local sub="${1:-}"
+    shift || true
+
+    case "$sub" in
+        add)
+            if [[ $# -ne 2 ]]; then
+                forge::err "usage: forge template add <name> <path-or-git-url>"
+                return 1
+            fi
+            forge::cmd_template_add "$1" "$2" "$TEMPLATES_DIR"
+            ;;
+        list)
+            if [[ $# -ne 0 ]]; then
+                forge::err "usage: forge template list"
+                return 1
+            fi
+            forge::cmd_template_list
+            ;;
+        remove|rm)
+            local name="${1:-}" force=false
+            shift || true
+            while [[ $# -gt 0 ]]; do
+                case "$1" in
+                    --force) force=true; shift ;;
+                    *)
+                        forge::err "unknown option: $1"
+                        return 1
+                        ;;
+                esac
+            done
+            forge::cmd_template_remove "$name" "$TEMPLATES_DIR" "$force"
+            ;;
+        *)
+            forge::err "usage: forge template <add|list|remove> ..."
+            return 1
+            ;;
+    esac
+}
+
+forge::main() {
+    if [[ $# -eq 0 ]]; then
+        forge::usage
+        exit 1
+    fi
+
+    case "$1" in
+        -h|--help)
+            forge::usage
+            ;;
+        -v|--version)
+            printf 'forge %s\n' "$FORGE_VERSION"
+            ;;
+        list)
+            if [[ $# -ne 1 ]]; then
+                forge::err "usage: forge list"
+                return 1
+            fi
+            forge::cmd_list
+            ;;
+        doctor)
+            if [[ $# -ne 1 ]]; then
+                forge::err "usage: forge doctor"
+                return 1
+            fi
+            forge::cmd_doctor
+            ;;
+        template)
+            shift
+            forge::cmd_template "$@"
+            ;;
+        new|create)
+            shift
+            forge::cmd_new "$@"
+            ;;
+        *)
+            forge::err "unknown command: $1"
+            forge::usage
+            exit 1
+            ;;
+    esac
+}
+
+forge::main "$@"
