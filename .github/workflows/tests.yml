@@ -9,5 +9,5 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: bats-core/bats-action@a25d9b5ba65c35acb3adaed519f3e5a367e3f6fd # 3.0.0
+      - uses: bats-core/bats-action@2104b40bb7b6c2d5110b23a26b0bf265ab8027db # 3.0.0
       - run: bats tests/forge.bats
