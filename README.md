@@ -1,5 +1,7 @@
 # Project Forge
 
+[![tests](https://github.com/tiagouzl/project-forge/actions/workflows/tests.yml/badge.svg)](https://github.com/tiagouzl/project-forge/actions/workflows/tests.yml)
+
 A lightweight project scaffolding CLI built entirely with Bash.
 
 `forge` creates projects from templates, substitutes variables, validates
