@@ -10,6 +10,13 @@ setup() {
     # Sandbox isolado por teste.
     TEST_DIR="$(mktemp -d)"
     cd "$TEST_DIR" || exit 1
+
+    # Isola também o XDG: user_templates_dir() e o config preferem
+    # XDG_CONFIG_HOME sobre HOME — sem isso, um XDG herdado do ambiente
+    # (ex.: runners de CI) vaza templates/config entre testes.
+    export XDG_CONFIG_HOME="$TEST_DIR/xdg-home"
+    # Mesma resolução do forge; assertions usam este em vez de $HOME hardcoded.
+    PF_CONFIG_HOME="${XDG_CONFIG_HOME:-$HOME/.config}/project-forge"
 }
 
 teardown() {
@@ -325,7 +332,7 @@ make_fakebin() {
     run "$FORGE" template add node "$PWD/src-template"
     [ "$status" -ne 0 ]
     [[ "$output" == *"symlink"* ]]
-    [ ! -e "$HOME/.config/project-forge/templates/node" ]
+    [ ! -e "$PF_CONFIG_HOME/templates/node" ]
 }
 
 @test "template add recusa clone git com symlink" {
@@ -348,7 +355,7 @@ make_fakebin() {
     run "$FORGE" template add fromgit "file://$fixture"
     [ "$status" -ne 0 ]
     [[ "$output" == *"symlink"* ]]
-    [ ! -e "$HOME/.config/project-forge/templates/fromgit" ]
+    [ ! -e "$PF_CONFIG_HOME/templates/fromgit" ]
 }
 
 @test "forge new usa um template customizado normalmente" {
@@ -417,8 +424,8 @@ make_fakebin() {
 
     run "$FORGE" template add fromgit "file://$fixture"
     [ "$status" -eq 0 ]
-    [ -f "$HOME/.config/project-forge/templates/fromgit/file.txt" ]
-    [ ! -d "$HOME/.config/project-forge/templates/fromgit/.git" ]
+    [ -f "$PF_CONFIG_HOME/templates/fromgit/file.txt" ]
+    [ ! -d "$PF_CONFIG_HOME/templates/fromgit/.git" ]
 }
 
 @test "template add com argumento extra falha em vez de ignorar" {
@@ -440,8 +447,8 @@ make_fakebin() {
 
 @test "config default_path é usado quando --path não é passado" {
     export HOME="$TEST_DIR/home"
-    mkdir -p "$HOME/.config/project-forge" custom-parent
-    printf 'default_path=%s\n' "$PWD/custom-parent" > "$HOME/.config/project-forge/config"
+    mkdir -p "$PF_CONFIG_HOME" custom-parent
+    printf 'default_path=%s\n' "$PWD/custom-parent" > "$PF_CONFIG_HOME/config"
 
     run "$FORGE" new python demo --no-git
     [ "$status" -eq 0 ]
@@ -450,8 +457,8 @@ make_fakebin() {
 
 @test "--path sobrescreve o default_path do config" {
     export HOME="$TEST_DIR/home"
-    mkdir -p "$HOME/.config/project-forge" cfg-parent cli-parent
-    printf 'default_path=%s\n' "$PWD/cfg-parent" > "$HOME/.config/project-forge/config"
+    mkdir -p "$PF_CONFIG_HOME" cfg-parent cli-parent
+    printf 'default_path=%s\n' "$PWD/cfg-parent" > "$PF_CONFIG_HOME/config"
 
     run "$FORGE" new python demo --path cli-parent --no-git
     [ "$status" -eq 0 ]
@@ -461,8 +468,8 @@ make_fakebin() {
 
 @test "config no_git=true pula o git init" {
     export HOME="$TEST_DIR/home"
-    mkdir -p "$HOME/.config/project-forge"
-    printf 'no_git=true\n' > "$HOME/.config/project-forge/config"
+    mkdir -p "$PF_CONFIG_HOME"
+    printf 'no_git=true\n' > "$PF_CONFIG_HOME/config"
 
     run "$FORGE" new python demo
     [ "$status" -eq 0 ]
@@ -472,8 +479,8 @@ make_fakebin() {
 
 @test "config com no_git inválido e chave desconhecida é ignorado" {
     export HOME="$TEST_DIR/home"
-    mkdir -p "$HOME/.config/project-forge"
-    printf 'no_git=maybe\nunknown_key=1\n' > "$HOME/.config/project-forge/config"
+    mkdir -p "$PF_CONFIG_HOME"
+    printf 'no_git=maybe\nunknown_key=1\n' > "$PF_CONFIG_HOME/config"
 
     run "$FORGE" new python demo
     [ "$status" -eq 0 ]
