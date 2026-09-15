@@ -25,6 +25,8 @@ cd project-forge
 ./forge new bash backup-tool --path ~/Projects --no-git
 ```
 
+Aliases: `create` for `new`, `rm` for `template remove`.
+
 ## Options
 
 | Flag            | Effect                                                              |
